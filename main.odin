@@ -3,6 +3,8 @@ package main
 import "core:fmt"
 import "core:math"
 import "core:math/rand"
+import vmem "core:mem/virtual"
+import "core:strings"
 
 import rl "vendor:raylib"
 DEBUG_COLISION :: #config(DEBUG_COLISION, false)
@@ -31,9 +33,6 @@ atlas: rl.Texture2D
 tx_candy: rl.Texture2D
 
 
-// WE ALWAYS PUT ONE AND we are automatically moving it, if we click, we leave it on the spot
-
-
 main :: proc() {
 	rl.InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "LEVELEDIT")
 	rl.InitAudioDevice()
@@ -47,13 +46,13 @@ main :: proc() {
 
 	load_animations()
 	load_sprites()
-
+	load_prefab()
 	world := new_world()
 
 
 	game := Game {
 		world          = world,
-		on_cursor      = animation_bank[ANIMATION.ENEMY_RUN],
+		on_cursor      = PREFAB(0),
 		draw_colliders = false,
 	}
 
@@ -64,7 +63,9 @@ main :: proc() {
 		pos := rl.GetMousePosition()
 		if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
 			fmt.println(pos)
-			spawn_enemy(&game, pos)
+
+			spawn_entity(game.world, prefab_bank[game.on_cursor], pos)
+
 			fmt.println(game.world.entity_count)
 		}
 
@@ -76,18 +77,33 @@ main :: proc() {
 			}
 		}
 
+		if rl.IsKeyPressed(rl.KeyboardKey.N) {
+			next := game.on_cursor + PREFAB(1)
+			if next >= PREFAB.PREFAB_COUNT {
+				next = PREFAB(0)
+			}
+			game.on_cursor = next
+			fmt.println(game.on_cursor)
+		}
+
+
+		if rl.IsKeyPressed((rl.KeyboardKey.F5)) {
+			strings, arena := save_scene(world)
+			fmt.println()
+			for str in strings {
+				fmt.print(str)
+			}
+
+			vmem.arena_destroy(&arena)
+			delete(strings)
+		}
+
 
 		rl.BeginDrawing()
 
 		draw_grid()
 
-		draw_animated_sprite(
-			&game,
-			Position{pos, {ENEMY_SIZE, ENEMY_SIZE}},
-			&game.on_cursor,
-			0,
-			.NEUTRAL,
-		)
+		draw_prefab(&game, pos)
 
 
 		RenderingSystem(&game)
@@ -97,6 +113,147 @@ main :: proc() {
 		rl.ClearBackground(rl.BLACK)
 		rl.EndDrawing()
 
+	}
+}
+
+save_scene :: proc(world: ^World) -> ([dynamic]string, vmem.Arena) {
+	arena: vmem.Arena
+	strings: [dynamic]string
+	arena_allocator := vmem.arena_allocator(&arena)
+	// TODO: BE CAREFULL WITH THIS, WE WILL COUNT NUMBER OF FILES ON ./SCENES AND MAKE SCENES_00n
+	append(&strings, "SCENE 001")
+	for _, archetype in world.archetypes {
+		mask := archetype.component_mask
+		for i in 0 ..< len(archetype.entities_id) {
+			str := fmt.aprintf("$%b$\n", int(mask), allocator = arena_allocator)
+			append(&strings, str)
+			for component in COMPONENT_ID(0) ..< COMPONENT_ID.COUNT {
+				if (component & mask) == component {
+					switch component {
+					case .POSITION:
+						c := archetype.positions[i]
+						str := fmt.aprintf(
+							"C1/%v/%v\n",
+							c.pos,
+							c.size,
+							allocator = arena_allocator,
+						)
+						append(&strings, str)
+					case .VELOCITY:
+						c := archetype.velocities[i]
+						str := fmt.aprintf(
+							"C2/%v/%v\n",
+							c.direction,
+							c.speed,
+							allocator = arena_allocator,
+						)
+						append(&strings, str)
+					case .SPRITE:
+						c := archetype.sprites[i]
+						str := fmt.aprintf("C4/%v\n", c.IMAGE_IDX, allocator = arena_allocator)
+						append(&strings, str)
+
+					case .ANIMATION:
+						c := archetype.animations[i]
+						str := fmt.aprintf("C8/%v\n", c.IMAGE_IDX, allocator = arena_allocator)
+						append(&strings, str)
+
+					case .DATA:
+						c := archetype.data[i]
+						str := fmt.aprintf(
+							"C16/%v/%v/%v\n",
+							int(c.kind),
+							int(c.state),
+							int(c.team),
+							allocator = arena_allocator,
+						)
+						append(&strings, str)
+					case .COLLIDER:
+						c := archetype.colliders[i]
+						str := fmt.aprintf(
+							"C32/%v/%v/%v\n",
+							c.position,
+							c.w,
+							c.h,
+							allocator = arena_allocator,
+						)
+						append(&strings, str)
+					case .IA:
+						c := archetype.ias[i]
+						str := fmt.aprintf(
+							"C64/%v/%v/%v/%v/0\n",
+							c.behavior,
+							c.reload_time,
+							c.minimum_distance,
+							c.maximum_distance,
+							allocator = arena_allocator,
+						)
+						append(&strings, str)
+					case .COUNT:
+					}
+				}
+			}
+			str = fmt.aprintf("\n", allocator = arena_allocator)
+			append(&strings, str)
+		}
+
+
+	}
+	fmt.println("SCENE SAVED\n\n")
+	return strings, arena
+}
+
+
+spawn_entity :: proc(world: ^World, prefab: Prefab, position: Vector2) {
+	mask := prefab.mask
+	add_entity(world, mask)
+
+	archetype := world.archetypes[mask]
+	for component in COMPONENT_ID(0) ..< COMPONENT_ID.COUNT {
+		if (component & mask) == component {
+			switch component {
+			case .POSITION:
+				new_position := prefab.position
+				new_position.pos = position
+				append(&archetype.positions, new_position)
+			case .VELOCITY:
+				append(&archetype.velocities, prefab.velocity)
+			case .SPRITE:
+				new_sprite := prefab.sprite
+				new_sprite.dst_rect.position = position
+				append(&archetype.sprites, new_sprite)
+			case .ANIMATION:
+				append(&archetype.animations, prefab.animation)
+			case .DATA:
+				append(&archetype.data, prefab.data)
+			case .COLLIDER:
+				new_collider := prefab.collider
+				new_collider.position += position
+				append(&archetype.colliders, new_collider)
+			case .IA:
+				append(&archetype.ias, prefab.ia)
+			case .COUNT:
+			}
+		}
+	}
+}
+
+
+draw_prefab :: proc(game: ^Game, pos: Vector2) {
+	prefab := prefab_bank[game.on_cursor]
+
+	if (prefab.mask & COMPONENT_ID.ANIMATION) == .ANIMATION {
+		draw_animated_sprite(
+			game,
+			Position{pos, {ENEMY_SIZE, ENEMY_SIZE}},
+			&prefab.animation,
+			0,
+			.NEUTRAL,
+		)
+	} else if (prefab.mask & COMPONENT_ID.SPRITE) == .SPRITE {
+		dst_rec := Rect{pos, prefab.sprite.dst_rect.size}
+		prefab.sprite.dst_rect = dst_rec
+		draw_sprite(prefab.sprite)
 	}
 }
 

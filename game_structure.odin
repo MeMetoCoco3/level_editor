@@ -8,7 +8,7 @@ Vector2 :: [2]f32
 Game :: struct {
 	draw_colliders: bool,
 	state:          CURSOR_STATE,
-	on_cursor:      Animation,
+	on_cursor:      PREFAB,
 	world:          ^World,
 }
 
@@ -36,9 +36,33 @@ SPRITE :: enum {
 	TAIL,
 	BORDER,
 	CORNER,
+	BORDER_UP,
+	// BORDER_DOWN,
+	// BORDER_LEFT,
+	// BORDER_RIGHT,
 	SPRITE_COUNT,
 }
 
+
+Prefab :: struct {
+	mask:      COMPONENT_ID,
+	position:  Position,
+	velocity:  Velocity,
+	sprite:    Sprite,
+	animation: Animation,
+	data:      Data,
+	collider:  Collider,
+	ia:        IA,
+}
+
+PREFAB :: enum {
+	ENEMY,
+	BORDER,
+	COIN,
+	PREFAB_COUNT,
+}
+
+prefab_bank: [PREFAB.PREFAB_COUNT]Prefab
 animation_bank: [ANIMATION.ANIM_COUNT]Animation
 sprite_bank: [SPRITE.SPRITE_COUNT]Sprite
 bg_music: rl.Music
@@ -143,6 +167,7 @@ load_animations :: proc() {
 		offset         = {0, 0},
 		kind           = .STATIC,
 		angle_type     = .DIRECTIONAL,
+		IMAGE_IDX      = int(ANIMATION.PLAYER),
 	}
 
 	animation_bank[ANIMATION.BULLET_G] = Animation {
@@ -160,6 +185,7 @@ load_animations :: proc() {
 		offset         = {0, 0},
 		kind           = .REPEAT,
 		angle_type     = .DIRECTIONAL,
+		IMAGE_IDX      = int(ANIMATION.BULLET_G),
 	}
 
 	animation_bank[ANIMATION.BULLET_B] = Animation {
@@ -177,6 +203,7 @@ load_animations :: proc() {
 		offset         = {0, 0},
 		kind           = .REPEAT,
 		angle_type     = .DIRECTIONAL,
+		IMAGE_IDX      = int(ANIMATION.BULLET_B),
 	}
 
 	animation_bank[ANIMATION.ENEMY_SHOT] = Animation {
@@ -193,6 +220,7 @@ load_animations :: proc() {
 		offset         = {0, 0},
 		kind           = .STATIC,
 		angle_type     = .LR,
+		IMAGE_IDX      = int(ANIMATION.ENEMY_SHOT),
 	}
 
 	animation_bank[ANIMATION.ENEMY_RUN] = Animation {
@@ -209,6 +237,7 @@ load_animations :: proc() {
 		offset         = {0, 0},
 		kind           = .REPEAT,
 		angle_type     = .LR,
+		IMAGE_IDX      = int(ANIMATION.ENEMY_RUN),
 	}
 
 
@@ -226,6 +255,7 @@ load_animations :: proc() {
 		offset         = {0, 0},
 		kind           = .REPEAT,
 		angle_type     = .DIRECTIONAL,
+		IMAGE_IDX      = int(ANIMATION.BIG_EXPLOSION),
 	}
 
 	animation_bank[ANIMATION.CANDY] = Animation {
@@ -238,6 +268,7 @@ load_animations :: proc() {
 		frame_delay = 4,
 		kind        = .REPEAT,
 		angle_type  = .IGNORE,
+		IMAGE_IDX   = int(ANIMATION.CANDY),
 	}
 
 }
@@ -245,40 +276,60 @@ load_animations :: proc() {
 
 load_sprites :: proc() {
 	sprite_bank[SPRITE.PLAYER_IDLE] = Sprite {
-		image    = &atlas,
-		src_rect = Rect{{0, 0}, {32, 32}},
+		image     = &atlas,
+		src_rect  = Rect{{0, 0}, {32, 32}},
+		IMAGE_IDX = int(SPRITE.PLAYER_IDLE),
 	}
 
 	sprite_bank[SPRITE.PLAYER_EAT] = Sprite {
-		image    = &atlas,
-		src_rect = Rect{{32, 0}, {32, 32}},
+		image     = &atlas,
+		src_rect  = Rect{{32, 0}, {32, 32}},
+		IMAGE_IDX = int(SPRITE.PLAYER_EAT),
 	}
 
 	sprite_bank[SPRITE.BODY_STRAIGHT] = Sprite {
-		image    = &atlas,
-		src_rect = Rect{{0, 32}, {32, 32}},
-		rotation = 90,
+		image     = &atlas,
+		src_rect  = Rect{{0, 32}, {32, 32}},
+		rotation  = 90,
+		IMAGE_IDX = int(SPRITE.BODY_STRAIGHT),
 	}
 
 	sprite_bank[SPRITE.BODY_TURN] = Sprite {
-		image    = &atlas,
-		src_rect = Rect{{32, 32}, {32, 32}},
+		image     = &atlas,
+		src_rect  = Rect{{32, 32}, {32, 32}},
+		IMAGE_IDX = int(SPRITE.BODY_TURN),
 	}
 
 	sprite_bank[SPRITE.TAIL] = Sprite {
-		image    = &atlas,
-		src_rect = Rect{{32, 64}, {32, 32}},
+		image     = &atlas,
+		src_rect  = Rect{{32, 64}, {32, 32}},
+		IMAGE_IDX = int(SPRITE.TAIL),
 	}
 
 	sprite_bank[SPRITE.BORDER] = Sprite {
-		image    = &atlas,
-		src_rect = Rect{{0, 96}, {32, 32}},
+		image     = &atlas,
+		src_rect  = Rect{{0, 96}, {32, 32}},
+		IMAGE_IDX = int(SPRITE.BORDER),
 	}
 
 	sprite_bank[SPRITE.CORNER] = Sprite {
-		image    = &atlas,
-		src_rect = Rect{{32, 96}, {32, 32}},
+		image     = &atlas,
+		src_rect  = Rect{{32, 96}, {32, 32}},
+		IMAGE_IDX = int(SPRITE.CORNER),
 	}
+
+	sprite_bank[SPRITE.BORDER_UP] = Sprite {
+		&atlas,
+		Rect{{0, 96}, {32, 32}},
+		Rect{{0 + 800 / 2, 0 + 128 / 2}, {128, 800}},
+		90,
+		int(SPRITE.BORDER_UP),
+	}
+	// sprite_bank[SPRITE.BORDER_DOWN] = Sprite {
+	// sprite_bank[SPRITE.BORDER_LEFT] = Sprite {
+	// sprite_bank[SPRITE.BORDER_RIGHT] = Sprite {
+	//
+
 }
 
 

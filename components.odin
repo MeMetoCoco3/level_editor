@@ -55,10 +55,11 @@ Velocity :: struct {
 }
 
 Sprite :: struct {
-	image:    ^rl.Texture2D,
-	src_rect: Rect,
-	dst_rect: Rect,
-	rotation: f32,
+	image:     ^rl.Texture2D,
+	src_rect:  Rect,
+	dst_rect:  Rect,
+	rotation:  f32,
+	IMAGE_IDX: int,
 }
 
 Rect :: struct {
@@ -81,6 +82,7 @@ Animation :: struct {
 	kind:               ANIMATION_KIND,
 	angle_type:         ANIM_DIRECTION,
 	angle:              f32,
+	IMAGE_IDX:          int,
 }
 
 ANIMATION_KIND :: enum {
