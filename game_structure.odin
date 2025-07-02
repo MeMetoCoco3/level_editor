@@ -133,21 +133,16 @@ draw_animated_sprite :: proc(
 	animation._time_on_frame += 1
 }
 
-draw_sprite :: proc(sprite: Sprite) {
+
+draw_sprite :: proc(sprite: Sprite, position: Position) {
 	src_rec := rl.Rectangle {
 		sprite.src_rect.position.x,
 		sprite.src_rect.position.y,
 		sprite.src_rect.size.x,
 		sprite.src_rect.size.y,
 	}
-	dst_rec := rl.Rectangle {
-		sprite.dst_rect.position.x,
-		sprite.dst_rect.position.y,
-		sprite.dst_rect.size.x,
-		sprite.dst_rect.size.y,
-	}
-
-	origin := Vector2{sprite.dst_rect.size.x / 2, sprite.dst_rect.size.y / 2}
+	dst_rec := rl.Rectangle{position.pos.x, position.pos.y, position.size.x, position.size.y}
+	origin := Vector2{position.size.x / 2, position.size.y / 2}
 	rl.DrawTexturePro(sprite.image^, src_rec, dst_rec, origin, sprite.rotation, rl.WHITE)
 }
 
@@ -321,7 +316,6 @@ load_sprites :: proc() {
 	sprite_bank[SPRITE.BORDER_UP] = Sprite {
 		&atlas,
 		Rect{{0, 96}, {32, 32}},
-		Rect{{0 + 800 / 2, 0 + 128 / 2}, {128, 800}},
 		90,
 		int(SPRITE.BORDER_UP),
 	}

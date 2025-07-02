@@ -7,6 +7,7 @@ import rl "vendor:raylib"
 DrawCollidersSystem :: proc(game: ^Game) {
 	arquetypes, is_empty := query_archetype(game.world, COMPONENT_ID.COLLIDER)
 	if is_empty {
+		fmt.println("IS EMPTY")
 		return
 	}
 
@@ -43,7 +44,7 @@ RenderingSystem :: proc(game: ^Game) {
 			positions := arquetype.positions
 			sprites := arquetype.sprites
 			for i in 0 ..< len(arquetype.entities_id) {
-				draw(sprites[i])
+				draw(sprites[i], positions[i])
 			}
 		}
 	}

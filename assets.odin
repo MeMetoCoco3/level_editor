@@ -21,7 +21,7 @@ load_prefab :: proc() {
 	prefab_bank[PREFAB.BORDER] = Prefab {
 		mask     = COMPONENT_ID.SPRITE | .POSITION | .COLLIDER | .DATA,
 		sprite   = sprite_bank[SPRITE.BORDER_UP],
-		position = Position{{0, 0}, {GRID_SIZE, GRID_SIZE}},
+		position = Position{{BORDER_SIZE / 2, SCREEN_WIDTH / 2}, {BORDER_SIZE, SCREEN_WIDTH}},
 		collider = Collider {
 			Vector2{0, 0} + EPSILON_COLISION * 2,
 			GRID_SIZE - EPSILON_COLISION * 4,

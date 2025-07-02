@@ -4,7 +4,8 @@ build:
 exec: 
 	./level_editor
 run:
-	odin run .
+	odin run . -define:title=${TITLE}
+	# make run TITLE="something"
 run_c: 
 	odin run . -define:DEBUG_COLISION=true
 debug: 
