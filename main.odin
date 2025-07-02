@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:math"
 import "core:math/rand"
 import vmem "core:mem/virtual"
+import "core:os"
 import "core:strings"
 
 import rl "vendor:raylib"
@@ -27,7 +28,7 @@ BULLET_SIZE :: 16
 
 NUM_RECTANGLES_ON_SCENE :: 100
 NUM_ENTITIES :: 1000
-
+TITLE :: "SCENE_001"
 
 atlas: rl.Texture2D
 tx_candy: rl.Texture2D
@@ -89,13 +90,14 @@ main :: proc() {
 
 		if rl.IsKeyPressed((rl.KeyboardKey.F5)) {
 			strings, arena := save_scene(world)
-			fmt.println()
-			for str in strings {
-				fmt.print(str)
-			}
-
+			// fmt.println()
+			// for str in strings {
+			// 	fmt.print(str)
+			// }
+			write_file(TITLE, strings)
 			vmem.arena_destroy(&arena)
 			delete(strings)
+			free_all(context.temp_allocator)
 		}
 
 
@@ -121,7 +123,7 @@ save_scene :: proc(world: ^World) -> ([dynamic]string, vmem.Arena) {
 	strings: [dynamic]string
 	arena_allocator := vmem.arena_allocator(&arena)
 	// TODO: BE CAREFULL WITH THIS, WE WILL COUNT NUMBER OF FILES ON ./SCENES AND MAKE SCENES_00n
-	append(&strings, "SCENE 001")
+	append(&strings, "SCENE 001\n\n")
 	for _, archetype in world.archetypes {
 		mask := archetype.component_mask
 		for i in 0 ..< len(archetype.entities_id) {
@@ -182,7 +184,7 @@ save_scene :: proc(world: ^World) -> ([dynamic]string, vmem.Arena) {
 						c := archetype.ias[i]
 						str := fmt.aprintf(
 							"C64/%v/%v/%v/%v/0\n",
-							c.behavior,
+							int(c.behavior),
 							c.reload_time,
 							c.minimum_distance,
 							c.maximum_distance,
@@ -235,6 +237,47 @@ spawn_entity :: proc(world: ^World, prefab: Prefab, position: Vector2) {
 			case .COUNT:
 			}
 		}
+	}
+}
+
+transmute_dynamic_array :: proc(strings: [dynamic]string) -> [dynamic]u8 {
+	buffer := make([dynamic]u8, context.temp_allocator)
+
+	for str in strings {
+		for c in str {
+			append(&buffer, cast(u8)c)
+		}
+	}
+	return buffer
+
+	// REMEMBER TO USE free_all(context.temp_allocator)
+}
+
+
+write_file :: proc(filepath: string, data: [dynamic]string) {
+	bytes := transmute_dynamic_array(data)
+	fmt.println(bytes)
+	cwd := os.get_current_directory()
+
+	name := fmt.tprintf("%v/scenes/%v.txt", cwd, filepath)
+	fmt.println(name)
+	ok := os.write_entire_file(name, bytes[:])
+	fmt.println(ok)
+	if !ok {
+		fmt.println("Error writing file")
+	}
+}
+
+read_file :: proc(filepath: string) {
+	data, ok := os.read_entire_file(filepath, context.allocator)
+	if !ok {
+		return
+	}
+	defer delete(data, context.allocator)
+
+	it := string(data)
+	for line in strings.split_lines_iterator(&it) {
+		// process line
 	}
 }
 
