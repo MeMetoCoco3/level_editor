@@ -6,16 +6,20 @@ import rl "vendor:raylib"
 Vector2 :: [2]f32
 
 Game :: struct {
-	draw_colliders: bool,
-	state:          CURSOR_STATE,
-	on_cursor:      PREFAB,
-	world:          ^World,
-	cursor_state:   cursor_state,
+	draw_colliders:  bool,
+	on_cursor:       PREFAB,
+	loaded_prefab:   Prefab_loaded,
+	world:           ^World,
+	cursor_state:    CURSOR_STATE,
+	vertex_selected: VERTEX,
 }
 
-CURSOR_STATE :: enum {
-	GRAB,
-	PLACE,
+VERTEX :: enum {
+	TL,
+	TR,
+	BL,
+	BR,
+	NOT_SELECTED,
 }
 
 ANIMATION :: enum {
@@ -47,6 +51,17 @@ SPRITE :: enum {
 
 Prefab :: struct {
 	mask:      COMPONENT_ID,
+	position:  Position,
+	velocity:  Velocity,
+	sprite:    Sprite,
+	animation: Animation,
+	data:      Data,
+	collider:  Collider,
+	ia:        IA,
+}
+
+Prefab_loaded :: struct {
+	mask:      COMPONENT_ID,
 	position:  ^Position,
 	velocity:  ^Velocity,
 	sprite:    ^Sprite,
@@ -65,11 +80,11 @@ PREFAB :: enum {
 	UPPER_COUNT,
 }
 
-cursor_state :: enum {
-	SELECT, // NO ON_CURSOR LOADED, SO WE CAN SELECT THINGS
-	GRAB_EXISTING, // CURSOR LOADED WITH EXISTING SO CAN UPDATE POSITION
+CURSOR_STATE :: enum {
+	SELECT,
+	GRAB_EXISTING,
 	GRAB_NEW,
-	RESIZE, // WE GRAB ONE VERTEX OF PREFAB AND MOVE IT
+	RESIZE,
 }
 
 prefab_bank: [PREFAB.UPPER_COUNT]Prefab
@@ -283,50 +298,24 @@ load_prefab_from_archetype :: proc(game: ^Game, archetype: ^Archetype, index: in
 	mask := archetype.component_mask
 	prefab_bank[PREFAB.LOADED_PREFAB].mask = mask
 	for component in COMPONENT_ID {
-		is_defined := (mask & component) == component
+		if !((mask & component) == component) {
+			continue
+		}
 		switch component {
 		case .POSITION:
-			if is_defined {
-				prefab_bank[PREFAB.LOADED_PREFAB].position = &archetype.positions[index]
-			} else {
-				prefab_bank[PREFAB.LOADED_PREFAB].position = &Position{{0, 0}, {0, 0}}
-			}
+			game.loaded_prefab.position = &archetype.positions[index]
 		case .VELOCITY:
-			if is_defined {
-				prefab_bank[PREFAB.LOADED_PREFAB].velocity = &archetype.velocities[index]
-			} else {
-				prefab_bank[PREFAB.LOADED_PREFAB].velocity = &Velocity{{0, 0}, 0}
-			}
+			game.loaded_prefab.velocity = &archetype.velocities[index]
 		case .SPRITE:
-			if is_defined {
-				prefab_bank[PREFAB.LOADED_PREFAB].sprite = &archetype.sprites[index]
-			} else {
-				prefab_bank[PREFAB.LOADED_PREFAB].sprite = &Sprite{}
-			}
+			game.loaded_prefab.sprite = &archetype.sprites[index]
 		case .ANIMATION:
-			if is_defined {
-				prefab_bank[PREFAB.LOADED_PREFAB].animation = &archetype.animations[index]
-			} else {
-				prefab_bank[PREFAB.LOADED_PREFAB].animation = &Animation{}
-			}
+			game.loaded_prefab.animation = &archetype.animations[index]
 		case .DATA:
-			if is_defined {
-				prefab_bank[PREFAB.LOADED_PREFAB].data = &archetype.data[index]
-			} else {
-				prefab_bank[PREFAB.LOADED_PREFAB].data = &Data{}
-			}
+			game.loaded_prefab.data = &archetype.data[index]
 		case .COLLIDER:
-			if is_defined {
-				prefab_bank[PREFAB.LOADED_PREFAB].collider = &archetype.colliders[index]
-			} else {
-				prefab_bank[PREFAB.LOADED_PREFAB].collider = &Collider{}
-			}
+			game.loaded_prefab.collider = &archetype.colliders[index]
 		case .IA:
-			if is_defined {
-				prefab_bank[PREFAB.LOADED_PREFAB].ia = &archetype.ias[index]
-			} else {
-				prefab_bank[PREFAB.LOADED_PREFAB].ia = &IA{}
-			}
+			game.loaded_prefab.ia = &archetype.ias[index]
 		case .COUNT:
 
 		}

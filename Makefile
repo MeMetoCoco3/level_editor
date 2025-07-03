@@ -6,8 +6,6 @@ exec:
 run:
 	odin run . -define:title=${TITLE}
 	# make run TITLE="something"
-run_c: 
-	odin run . -define:DEBUG_COLISION=true
 debug: 
-	odin build . -out:debug_le -o:none -debug
+	odin build . -define:title=${TITLE} -out:debug_le -o:none -debug
 	gdb debug_le 

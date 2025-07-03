@@ -10,6 +10,8 @@ import "core:strings"
 
 import rl "vendor:raylib"
 
+MIN_SIZE :: 8
+
 SCREEN_WIDTH :: 800
 SCREEN_HEIGHT :: 800
 PLAYER_SIZE :: 32
@@ -31,6 +33,9 @@ BORDER_SIZE :: 128
 
 NUM_RECTANGLES_ON_SCENE :: 100
 NUM_ENTITIES :: 1000
+
+VERTEX_SIZE :: 12
+
 
 atlas: rl.Texture2D
 tx_candy: rl.Texture2D
@@ -54,17 +59,22 @@ main :: proc() {
 	defer rl.UnloadTexture(atlas)
 	defer rl.UnloadTexture(tx_candy)
 
+
 	load_animations()
+
 	load_sprites()
 	load_prefab()
+
+	fmt.println(prefab_bank[PREFAB.ENEMY])
 	world := new_world()
 
 
 	game := Game {
-		world          = world,
-		on_cursor      = PREFAB(0),
-		draw_colliders = false,
-		cursor_state   = .SELECT,
+		world           = world,
+		on_cursor       = PREFAB(0),
+		draw_colliders  = false,
+		cursor_state    = .SELECT,
+		vertex_selected = .NOT_SELECTED,
 	}
 
 
@@ -76,7 +86,7 @@ main :: proc() {
 
 		rl.BeginDrawing()
 		draw_grid()
-		if game.cursor_state == .GRAB_NEW || game.cursor_state == .GRAB_EXISTING {
+		if game.cursor_state == .GRAB_NEW {
 			draw_prefab(&game, pos)
 		}
 		RenderingSystem(&game)
@@ -91,6 +101,7 @@ main :: proc() {
 
 InputSystem :: proc(game: ^Game, pos: ^Vector2) {
 	state := game.cursor_state
+	fmt.println(state)
 	if rl.IsKeyDown(rl.KeyboardKey.LEFT_CONTROL) {
 		pos.x = math.floor(pos.x / GRID_SIZE) * GRID_SIZE
 		pos.y = math.floor(pos.y / GRID_SIZE) * GRID_SIZE
@@ -104,47 +115,147 @@ InputSystem :: proc(game: ^Game, pos: ^Vector2) {
 		}
 	}
 
+	if rl.IsKeyPressed(rl.KeyboardKey.R) {
+		game.cursor_state = .RESIZE
+	}
+
+	if rl.IsKeyPressed(rl.KeyboardKey.S) {
+		game.cursor_state = .SELECT
+	}
 
 	if state == .SELECT {
 		if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
-			fmt.println("MOUSE PRESSED")
 			for _, archetype in game.world.archetypes {
 				for i in 0 ..< len(archetype.entities_id) {
 					position := archetype.positions[i]
-					fmt.println(pos)
-					fmt.println(position)
-					fmt.println()
-					if point_in_rect(pos^, position) {
-						fmt.println("WE COLLIDE ON: ", pos)
+					if point_in_pos(pos^, position) {
 						load_prefab_from_archetype(game, archetype, i)
-						// TODO: DELETE FROM ITS ARCHETYPE
 						game.cursor_state = .GRAB_EXISTING
-						game.on_cursor = .LOADED_PREFAB
+						break
 					}
 				}
 			}
 		}
 	}
 
-
-	if state == .GRAB_EXISTING || state == .GRAB_NEW {
+	if state == .RESIZE {
 		if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
-			fmt.println(pos)
-			spawn_entity(game.world, prefab_bank[game.on_cursor], pos^)
-			fmt.println(game.world.entity_count)
+			check_vertex_col: for _, archetype in game.world.archetypes {
+				for i in 0 ..< len(archetype.entities_id) {
+					entity_pos := archetype.positions[i].pos
+					entity_size := archetype.positions[i].size
+					vertices := [4]rl.Rectangle {
+						{
+							f32(entity_pos.x - VERTEX_SIZE / 2),
+							f32(entity_pos.y - VERTEX_SIZE / 2),
+							f32(VERTEX_SIZE),
+							f32(VERTEX_SIZE),
+						},
+						{
+							f32(entity_pos.x + entity_size.x - VERTEX_SIZE / 2),
+							f32(entity_pos.y - VERTEX_SIZE / 2),
+							f32(VERTEX_SIZE),
+							f32(VERTEX_SIZE),
+						},
+						{
+							f32(entity_pos.x - VERTEX_SIZE / 2),
+							f32(entity_pos.y + entity_size.y - VERTEX_SIZE / 2),
+							f32(VERTEX_SIZE),
+							f32(VERTEX_SIZE),
+						},
+						{
+							f32(entity_pos.x + entity_size.x - VERTEX_SIZE / 2),
+							f32(entity_pos.y + entity_size.y - VERTEX_SIZE / 2),
+							f32(VERTEX_SIZE),
+							f32(VERTEX_SIZE),
+						},
+					}
+
+					for vertex, v_index in vertices {
+						if point_in_rec(pos^, vertex) {
+							load_prefab_from_archetype(game, archetype, i)
+							game.vertex_selected = VERTEX(v_index)
+							break check_vertex_col
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if state == .RESIZE &&
+	   rl.IsMouseButtonDown(rl.MouseButton.LEFT) &&
+	   game.vertex_selected != .NOT_SELECTED {
+		fmt.println(game.vertex_selected)
+		vertex_pos := &game.loaded_prefab.position.pos
+		size := &game.loaded_prefab.position.size
+
+		original_br := vertex_pos^ + size^
+
+		switch game.vertex_selected {
+		case .TL:
+			new_tl := pos
+			new_br := original_br
+			vertex_pos^ = new_tl^
+			new_size := new_br - new_tl^
+			size.x = max(new_size.x, MIN_SIZE)
+			size.y = max(new_size.y, MIN_SIZE)
+
+		case .TR:
+			new_tl := Vector2{vertex_pos^.x, pos.y}
+			new_br := Vector2{pos.x, original_br.y}
+			vertex_pos^ = new_tl
+			new_size := new_br - new_tl
+			size.x = max(new_size.x, MIN_SIZE)
+			size.y = max(new_size.y, MIN_SIZE)
+
+		case .BL:
+			new_tl := Vector2{pos.x, vertex_pos^.y}
+			new_br := Vector2{original_br.x, pos.y}
+			vertex_pos^ = Vector2{pos.x, vertex_pos^.y}
+			new_size := new_br - vertex_pos^
+			size.x = max(new_size.x, MIN_SIZE)
+			size.y = max(new_size.y, MIN_SIZE)
+		case .BR:
+			new_size := pos^ - vertex_pos^
+			size.x = max(new_size.x, MIN_SIZE)
+			size.y = max(new_size.y, MIN_SIZE)
+
+		case .NOT_SELECTED:
+
+		}
+	} else if state == .RESIZE {
+		game.vertex_selected = .NOT_SELECTED
+	}
+
+	if state == .GRAB_EXISTING {
+		game.loaded_prefab.position.pos = pos^
+		if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
+			game.cursor_state = .SELECT
 		}
 	}
 
 	if state == .GRAB_NEW {
-		if rl.IsKeyPressed(rl.KeyboardKey.N) {
-			next := game.on_cursor + PREFAB(1)
+		if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
+			spawn_entity(game.world, prefab_bank[game.on_cursor], pos^)
+			game.cursor_state = .SELECT
+		}
+	}
+
+
+	if rl.IsKeyPressed(rl.KeyboardKey.N) {
+		next: PREFAB
+		if state != .GRAB_NEW {
+			next = PREFAB(0)
+		} else {
+			next = game.on_cursor + PREFAB(1)
 			if next >= PREFAB.PREFAB_COUNT {
 				next = PREFAB(0)
 			}
-			game.on_cursor = next
-			fmt.println(game.on_cursor)
 		}
 
+		game.cursor_state = .GRAB_NEW
+		game.on_cursor = next
 	}
 
 
@@ -407,22 +518,24 @@ spawn_entity :: proc(world: ^World, prefab: Prefab, position: Vector2) {
 			case .POSITION:
 				new_position := prefab.position
 				new_position.pos = position
-				append(&archetype.positions, new_position^)
+				fmt.println("NEW POSITION: ", new_position)
+				fmt.println("SIZE: ", prefab.position.size)
+				append(&archetype.positions, new_position)
 			case .VELOCITY:
-				append(&archetype.velocities, prefab.velocity^)
+				append(&archetype.velocities, prefab.velocity)
 			case .SPRITE:
 				new_sprite := prefab.sprite
-				append(&archetype.sprites, new_sprite^)
+				append(&archetype.sprites, new_sprite)
 			case .ANIMATION:
-				append(&archetype.animations, prefab.animation^)
+				append(&archetype.animations, prefab.animation)
 			case .DATA:
-				append(&archetype.data, prefab.data^)
+				append(&archetype.data, prefab.data)
 			case .COLLIDER:
 				new_collider := prefab.collider
 				new_collider.position += position
-				append(&archetype.colliders, new_collider^)
+				append(&archetype.colliders, new_collider)
 			case .IA:
-				append(&archetype.ias, prefab.ia^)
+				append(&archetype.ias, prefab.ia)
 			case .COUNT:
 			}
 		}
@@ -488,19 +601,19 @@ draw_prefab :: proc(game: ^Game, pos: Vector2) {
 		draw_animated_sprite(
 			game,
 			Position{pos, {ENEMY_SIZE, ENEMY_SIZE}},
-			prefab.animation,
+			&prefab.animation,
 			0,
 			.NEUTRAL,
 		)
 	} else if (prefab.mask & COMPONENT_ID.SPRITE) == .SPRITE {
-		draw_sprite(prefab.sprite^, Position{pos, prefab.position.size})
+		draw_sprite(prefab.sprite, Position{pos, prefab.position.size})
 	}
 }
 
 draw_grid :: proc() {
 	for i: i32 = 0; i < SCREEN_WIDTH; i += GRID_SIZE {
-		rl.DrawLine(i, 0, i, SCREEN_HEIGHT, rl.RED)
+		rl.DrawLine(i, 0, i, SCREEN_HEIGHT, rl.GRAY)
 
-		rl.DrawLine(0, i, SCREEN_WIDTH, i, rl.RED)
+		rl.DrawLine(0, i, SCREEN_WIDTH, i, rl.GRAY)
 	}
 }
