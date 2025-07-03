@@ -101,7 +101,6 @@ main :: proc() {
 
 InputSystem :: proc(game: ^Game, pos: ^Vector2) {
 	state := game.cursor_state
-	fmt.println(state)
 	if rl.IsKeyDown(rl.KeyboardKey.LEFT_CONTROL) {
 		pos.x = math.floor(pos.x / GRID_SIZE) * GRID_SIZE
 		pos.y = math.floor(pos.y / GRID_SIZE) * GRID_SIZE
@@ -189,7 +188,11 @@ InputSystem :: proc(game: ^Game, pos: ^Vector2) {
 		fmt.println(game.vertex_selected)
 		vertex_pos := &game.loaded_prefab.position.pos
 		size := &game.loaded_prefab.position.size
+		collider := game.loaded_prefab.collider
 
+
+		original_pos := vertex_pos^
+		original_size := size^
 		original_br := vertex_pos^ + size^
 
 		switch game.vertex_selected {
@@ -224,16 +227,28 @@ InputSystem :: proc(game: ^Game, pos: ^Vector2) {
 		case .NOT_SELECTED:
 
 		}
+		pos_delta := vertex_pos^ - original_pos
+		size_delta := size^ - original_size
+		collider.position += pos_delta
+		collider.w += int(size_delta.x)
+		collider.h += int(size_delta.y)
+
 	} else if state == .RESIZE {
 		game.vertex_selected = .NOT_SELECTED
 	}
 
+
 	if state == .GRAB_EXISTING {
+
+		delta := game.loaded_prefab.collider.position - game.loaded_prefab.position.pos
 		game.loaded_prefab.position.pos = pos^
+
+		game.loaded_prefab.collider.position = pos^ + delta
 		if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
 			game.cursor_state = .SELECT
 		}
 	}
+
 
 	if state == .GRAB_NEW {
 		if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
