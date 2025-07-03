@@ -65,3 +65,13 @@ RenderingSystem :: proc(game: ^Game) {
 		}
 	}
 }
+
+
+point_in_rect :: proc(p: Vector2, pos: Position) -> bool {
+	return(
+		p.x >= pos.pos.x &&
+		p.x <= pos.pos.x + pos.size.x &&
+		p.y >= pos.pos.y &&
+		p.y <= pos.pos.y + pos.size.y \
+	)
+}

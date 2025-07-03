@@ -64,16 +64,21 @@ main :: proc() {
 		world          = world,
 		on_cursor      = PREFAB(0),
 		draw_colliders = false,
+		cursor_state   = .SELECT,
 	}
 
 
 	for !rl.WindowShouldClose() {
 		pos := rl.GetMousePosition()
-		InputSystem(&game, pos)
+
+
+		InputSystem(&game, &pos)
 
 		rl.BeginDrawing()
 		draw_grid()
-		draw_prefab(&game, pos)
+		if game.cursor_state == .GRAB_NEW || game.cursor_state == .GRAB_EXISTING {
+			draw_prefab(&game, pos)
+		}
 		RenderingSystem(&game)
 		if game.draw_colliders {
 			DrawCollidersSystem(&game)
@@ -84,13 +89,11 @@ main :: proc() {
 	}
 }
 
-InputSystem :: proc(game: ^Game, pos: Vector2) {
-	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
-		fmt.println(pos)
-
-		spawn_entity(game.world, prefab_bank[game.on_cursor], pos)
-
-		fmt.println(game.world.entity_count)
+InputSystem :: proc(game: ^Game, pos: ^Vector2) {
+	state := game.cursor_state
+	if rl.IsKeyDown(rl.KeyboardKey.LEFT_CONTROL) {
+		pos.x = math.floor(pos.x / GRID_SIZE) * GRID_SIZE
+		pos.y = math.floor(pos.y / GRID_SIZE) * GRID_SIZE
 	}
 
 	if rl.IsKeyPressed(rl.KeyboardKey.C) {
@@ -102,13 +105,46 @@ InputSystem :: proc(game: ^Game, pos: Vector2) {
 	}
 
 
-	if rl.IsKeyPressed(rl.KeyboardKey.N) {
-		next := game.on_cursor + PREFAB(1)
-		if next >= PREFAB.PREFAB_COUNT {
-			next = PREFAB(0)
+	if state == .SELECT {
+		if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
+			fmt.println("MOUSE PRESSED")
+			for _, archetype in game.world.archetypes {
+				for i in 0 ..< len(archetype.entities_id) {
+					position := archetype.positions[i]
+					fmt.println(pos)
+					fmt.println(position)
+					fmt.println()
+					if point_in_rect(pos^, position) {
+						fmt.println("WE COLLIDE ON: ", pos)
+						load_prefab_from_archetype(game, archetype, i)
+						// TODO: DELETE FROM ITS ARCHETYPE
+						game.cursor_state = .GRAB_EXISTING
+						game.on_cursor = .LOADED_PREFAB
+					}
+				}
+			}
 		}
-		game.on_cursor = next
-		fmt.println(game.on_cursor)
+	}
+
+
+	if state == .GRAB_EXISTING || state == .GRAB_NEW {
+		if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
+			fmt.println(pos)
+			spawn_entity(game.world, prefab_bank[game.on_cursor], pos^)
+			fmt.println(game.world.entity_count)
+		}
+	}
+
+	if state == .GRAB_NEW {
+		if rl.IsKeyPressed(rl.KeyboardKey.N) {
+			next := game.on_cursor + PREFAB(1)
+			if next >= PREFAB.PREFAB_COUNT {
+				next = PREFAB(0)
+			}
+			game.on_cursor = next
+			fmt.println(game.on_cursor)
+		}
+
 	}
 
 
@@ -124,7 +160,6 @@ InputSystem :: proc(game: ^Game, pos: Vector2) {
 		content, arena := read_file(title)
 
 		load_content(game, content)
-
 
 		vmem.arena_destroy(&arena)
 		delete(content)
@@ -372,22 +407,22 @@ spawn_entity :: proc(world: ^World, prefab: Prefab, position: Vector2) {
 			case .POSITION:
 				new_position := prefab.position
 				new_position.pos = position
-				append(&archetype.positions, new_position)
+				append(&archetype.positions, new_position^)
 			case .VELOCITY:
-				append(&archetype.velocities, prefab.velocity)
+				append(&archetype.velocities, prefab.velocity^)
 			case .SPRITE:
 				new_sprite := prefab.sprite
-				append(&archetype.sprites, new_sprite)
+				append(&archetype.sprites, new_sprite^)
 			case .ANIMATION:
-				append(&archetype.animations, prefab.animation)
+				append(&archetype.animations, prefab.animation^)
 			case .DATA:
-				append(&archetype.data, prefab.data)
+				append(&archetype.data, prefab.data^)
 			case .COLLIDER:
 				new_collider := prefab.collider
 				new_collider.position += position
-				append(&archetype.colliders, new_collider)
+				append(&archetype.colliders, new_collider^)
 			case .IA:
-				append(&archetype.ias, prefab.ia)
+				append(&archetype.ias, prefab.ia^)
 			case .COUNT:
 			}
 		}
@@ -453,12 +488,12 @@ draw_prefab :: proc(game: ^Game, pos: Vector2) {
 		draw_animated_sprite(
 			game,
 			Position{pos, {ENEMY_SIZE, ENEMY_SIZE}},
-			&prefab.animation,
+			prefab.animation,
 			0,
 			.NEUTRAL,
 		)
 	} else if (prefab.mask & COMPONENT_ID.SPRITE) == .SPRITE {
-		draw_sprite(prefab.sprite, Position{pos, prefab.position.size})
+		draw_sprite(prefab.sprite^, Position{pos, prefab.position.size})
 	}
 }
 

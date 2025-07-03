@@ -6,40 +6,40 @@ import rl "vendor:raylib"
 load_prefab :: proc() {
 	prefab_bank[PREFAB.ENEMY] = Prefab {
 		mask      = COMPONENT_ID.ANIMATION | .POSITION | .VELOCITY | .COLLIDER | .IA | .DATA,
-		animation = animation_bank[ANIMATION.ENEMY_SHOT],
-		position  = Position{{0, 0}, {ENEMY_SIZE, ENEMY_SIZE}},
-		velocity  = Velocity{{0, 0}, ENEMY_SPEED},
-		collider  = Collider {
+		animation = &animation_bank[ANIMATION.ENEMY_SHOT],
+		position  = &Position{{0, 0}, {ENEMY_SIZE, ENEMY_SIZE}},
+		velocity  = &Velocity{{0, 0}, ENEMY_SPEED},
+		collider  = &Collider {
 			Vector2{0, 0} + EPSILON_COLISION * 2,
 			ENEMY_SIZE - EPSILON_COLISION * 4,
 			ENEMY_SIZE - EPSILON_COLISION * 4,
 		},
-		ia        = IA{.APPROACH, 60, 100, 500, 0},
-		data      = Data{.ENEMY, .ALIVE, .BAD},
+		ia        = &IA{.APPROACH, 60, 100, 500, 0},
+		data      = &Data{.ENEMY, .ALIVE, .BAD},
 	}
 
 	prefab_bank[PREFAB.BORDER] = Prefab {
 		mask     = COMPONENT_ID.SPRITE | .POSITION | .COLLIDER | .DATA,
-		sprite   = sprite_bank[SPRITE.BORDER_UP],
-		position = Position{{BORDER_SIZE / 2, SCREEN_WIDTH / 2}, {BORDER_SIZE, SCREEN_WIDTH}},
-		collider = Collider {
+		sprite   = &sprite_bank[SPRITE.BORDER_UP],
+		position = &Position{{BORDER_SIZE / 2, SCREEN_WIDTH / 2}, {BORDER_SIZE, SCREEN_WIDTH}},
+		collider = &Collider {
 			Vector2{0, 0} + EPSILON_COLISION * 2,
 			GRID_SIZE - EPSILON_COLISION * 4,
 			GRID_SIZE - EPSILON_COLISION * 4,
 		},
-		data     = Data{.STATIC, .ALIVE, .NEUTRAL},
+		data     = &Data{.STATIC, .ALIVE, .NEUTRAL},
 	}
 
 	prefab_bank[PREFAB.COIN] = Prefab {
 		mask      = COMPONENT_ID.ANIMATION | .POSITION | .COLLIDER | .DATA,
-		animation = animation_bank[ANIMATION.CANDY],
-		position  = Position{{0, 0}, {CANDY_SIZE, CANDY_SIZE}},
-		collider  = Collider {
+		animation = &animation_bank[ANIMATION.CANDY],
+		position  = &Position{{0, 0}, {CANDY_SIZE, CANDY_SIZE}},
+		collider  = &Collider {
 			Vector2{0, 0} + EPSILON_COLISION * 2,
 			CANDY_SIZE - EPSILON_COLISION * 4,
 			CANDY_SIZE - EPSILON_COLISION * 4,
 		},
-		data      = Data{.CANDY, .ALIVE, .NEUTRAL},
+		data      = &Data{.CANDY, .ALIVE, .NEUTRAL},
 	}
 }
 
