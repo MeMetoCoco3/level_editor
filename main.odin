@@ -114,6 +114,10 @@ InputSystem :: proc(game: ^Game, pos: ^Vector2) {
 		}
 	}
 
+	if rl.IsKeyPressed(rl.KeyboardKey.L) {
+		game.cursor_state = .LOAD
+	}
+
 	if rl.IsKeyPressed(rl.KeyboardKey.R) {
 		game.cursor_state = .RESIZE
 	}
@@ -239,7 +243,6 @@ InputSystem :: proc(game: ^Game, pos: ^Vector2) {
 
 
 	if state == .GRAB_EXISTING {
-
 		delta := game.loaded_prefab.collider.position - game.loaded_prefab.position.pos
 		game.loaded_prefab.position.pos = pos^
 
@@ -283,6 +286,7 @@ InputSystem :: proc(game: ^Game, pos: ^Vector2) {
 	}
 
 	if rl.IsKeyPressed(rl.KeyboardKey.F1) {
+		free_all_entities(game)
 		content, arena := read_file(title)
 
 		load_content(game, content)
@@ -290,15 +294,48 @@ InputSystem :: proc(game: ^Game, pos: ^Vector2) {
 		vmem.arena_destroy(&arena)
 		delete(content)
 		free_all(context.temp_allocator)
+		fmt.println("FREED ALL")
 	}
 
 
 }
 
 
+free_all_entities :: proc(game: ^Game) {
+	for _, archetype in game.world.archetypes {
+		mask := archetype.component_mask
+		delete(archetype.entities_id)
+		for component in COMPONENT_ID {
+			if (component & mask) == component {
+				switch component {
+				case .POSITION:
+					delete(archetype.positions)
+				case .VELOCITY:
+					delete(archetype.velocities)
+				case .SPRITE:
+					delete(archetype.sprites)
+				case .ANIMATION:
+					delete(archetype.animations)
+				case .DATA:
+					delete(archetype.data)
+				case .COLLIDER:
+					delete(archetype.colliders)
+				case .IA:
+					delete(archetype.ias)
+				case .COUNT:
+				}
+			}
+		}
+		delete_key(&game.world.archetypes, mask)
+	}
+}
+
 load_content :: proc(game: ^Game, content: [dynamic]string) {
 	fmt.println("LOADING")
 	current_arquetype: ^Archetype
+	if len(content) < 3 {
+		return
+	}
 	for line in content[1:] {
 		if len(line) == 0 {
 			continue
@@ -360,6 +397,11 @@ load_content :: proc(game: ^Game, content: [dynamic]string) {
 				)
 
 			case .SPRITE:
+				fmt.println("WE ARE PUTTING SOME SPRITE")
+
+				fmt.println("WE ARE PUTTING SOME SPRITE")
+				fmt.println("WE ARE PUTTING SOME SPRITE")
+				fmt.println("WE ARE PUTTING SOME SPRITE")
 				sprite_index := strconv.atoi(pieces[1])
 				fmt.println(sprite_bank[sprite_index])
 				append(&current_arquetype.sprites, sprite_bank[sprite_index])

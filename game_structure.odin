@@ -85,6 +85,7 @@ CURSOR_STATE :: enum {
 	GRAB_EXISTING,
 	GRAB_NEW,
 	RESIZE,
+	LOAD,
 }
 
 prefab_bank: [PREFAB.UPPER_COUNT]Prefab
