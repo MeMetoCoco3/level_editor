@@ -5,12 +5,17 @@ import "core:math"
 import "core:math/rand"
 import vmem "core:mem/virtual"
 import "core:os"
+import "core:path/filepath"
 import "core:strconv"
 import "core:strings"
 
 import rl "vendor:raylib"
 
 MIN_SIZE :: 8
+
+PADDING :: 20
+HEIGHT_TEXT_BLOCK :: 50
+
 
 SCREEN_WIDTH :: 800
 SCREEN_HEIGHT :: 800
@@ -44,10 +49,6 @@ tx_candy: rl.Texture2D
 title :: #config(title, "")
 
 main :: proc() {
-	when title == "" {
-		fmt.println("(-) Insert title as a first argument.")
-		os.exit(0)
-	}
 
 	rl.InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "LEVEL EDIT: " + title)
 	rl.InitAudioDevice()
@@ -77,6 +78,15 @@ main :: proc() {
 		vertex_selected = .NOT_SELECTED,
 	}
 
+	buf := make([dynamic]string)
+	get_scene_files(&buf)
+	game.files = &buf
+
+	game.current_title = fmt.tprintf("SCENE_0%v", len(buf))
+
+	when len(title) > 0 {
+		game.current_title = title
+	}
 
 	for !rl.WindowShouldClose() {
 		pos := rl.GetMousePosition()
@@ -85,22 +95,88 @@ main :: proc() {
 		InputSystem(&game, &pos)
 
 		rl.BeginDrawing()
-		draw_grid()
-		if game.cursor_state == .GRAB_NEW {
-			draw_prefab(&game, pos)
+		if game.cursor_state == .LOAD {
+			rl.DrawRectangle(
+				0 + PADDING,
+				0 + PADDING,
+				SCREEN_WIDTH - PADDING * 2,
+				SCREEN_HEIGHT - PADDING * 2,
+				rl.BLACK,
+			)
+			for name, i in game.files {
+				x: i32 = PADDING
+				y := i32(0 + PADDING * (i + 1) + HEIGHT_TEXT_BLOCK * i)
+				rl.DrawRectangle(x, y, SCREEN_WIDTH - PADDING * 4, 50, rl.ORANGE)
+				c_name, err := strings.clone_to_cstring(name)
+
+				color := i == game.selected_file ? rl.RED : rl.BLACK
+				rl.DrawText(c_name, x * 2, y, 50, color)
+			}
+
+
+		} else {
+			draw_grid()
+			if game.cursor_state == .GRAB_NEW {
+				draw_prefab(&game, pos)
+			}
+			RenderingSystem(&game)
+			if game.draw_colliders {
+				DrawCollidersSystem(&game)
+			}
 		}
-		RenderingSystem(&game)
-		if game.draw_colliders {
-			DrawCollidersSystem(&game)
-		}
+
+
 		rl.ClearBackground(rl.BLACK)
 		rl.EndDrawing()
 
 	}
 }
 
+
 InputSystem :: proc(game: ^Game, pos: ^Vector2) {
 	state := game.cursor_state
+
+
+	if rl.IsKeyPressed(rl.KeyboardKey.F6) {
+		game.cursor_state = .LOAD
+	}
+
+	if state == .LOAD {
+		if rl.IsKeyPressed(rl.KeyboardKey.UP) {
+			game.selected_file -= 1
+			if game.selected_file < 0 {
+				game.selected_file = len(game.files) - 1
+			}
+		}
+		if rl.IsKeyPressed(rl.KeyboardKey.DOWN) {
+			game.selected_file += 1
+
+
+			if game.selected_file >= len(game.files) {
+				game.selected_file = 0
+			}
+
+		}
+
+		if rl.IsKeyPressed(rl.KeyboardKey.ENTER) {
+			file_name := game.files[game.selected_file]
+			free_all_entities(game)
+			content, arena := read_file(file_name)
+
+			load_content(game, content)
+
+			vmem.arena_destroy(&arena)
+			delete(content)
+			free_all(context.temp_allocator)
+
+			game.cursor_state = .SELECT
+			game.current_title = strings.clone(file_name)
+		}
+
+
+	}
+
+
 	if rl.IsKeyDown(rl.KeyboardKey.LEFT_CONTROL) {
 		pos.x = math.floor(pos.x / GRID_SIZE) * GRID_SIZE
 		pos.y = math.floor(pos.y / GRID_SIZE) * GRID_SIZE
@@ -278,8 +354,8 @@ InputSystem :: proc(game: ^Game, pos: ^Vector2) {
 
 
 	if rl.IsKeyPressed(rl.KeyboardKey.F5) {
-		strings, arena := save_scene(game.world)
-		write_file(title, strings)
+		strings, arena := save_scene(game)
+		write_file(game.current_title, strings)
 		vmem.arena_destroy(&arena)
 		delete(strings)
 		free_all(context.temp_allocator)
@@ -287,17 +363,14 @@ InputSystem :: proc(game: ^Game, pos: ^Vector2) {
 
 	if rl.IsKeyPressed(rl.KeyboardKey.F1) {
 		free_all_entities(game)
-		content, arena := read_file(title)
+		content, arena := read_file(game.current_title)
 
 		load_content(game, content)
 
 		vmem.arena_destroy(&arena)
 		delete(content)
 		free_all(context.temp_allocator)
-		fmt.println("FREED ALL")
 	}
-
-
 }
 
 
@@ -397,11 +470,6 @@ load_content :: proc(game: ^Game, content: [dynamic]string) {
 				)
 
 			case .SPRITE:
-				fmt.println("WE ARE PUTTING SOME SPRITE")
-
-				fmt.println("WE ARE PUTTING SOME SPRITE")
-				fmt.println("WE ARE PUTTING SOME SPRITE")
-				fmt.println("WE ARE PUTTING SOME SPRITE")
 				sprite_index := strconv.atoi(pieces[1])
 				fmt.println(sprite_bank[sprite_index])
 				append(&current_arquetype.sprites, sprite_bank[sprite_index])
@@ -475,12 +543,13 @@ load_content :: proc(game: ^Game, content: [dynamic]string) {
 }
 
 
-save_scene :: proc(world: ^World) -> ([dynamic]string, vmem.Arena) {
+save_scene :: proc(game: ^Game) -> ([dynamic]string, vmem.Arena) {
 	arena: vmem.Arena
+	world := game.world
 	// TODO: CHECK IF THIS STRINGS SHOULD BE DECLARED IN ARENA
 	strings: [dynamic]string
 	arena_allocator := vmem.arena_allocator(&arena)
-	scene_title := fmt.tprintf("%s\n\n", title)
+	scene_title := fmt.tprintf("%s\n\n", game.current_title)
 	append(&strings, scene_title)
 	for _, archetype in world.archetypes {
 		mask := archetype.component_mask
@@ -615,10 +684,15 @@ transmute_dynamic_array :: proc(strings: [dynamic]string) -> [dynamic]u8 {
 
 write_file :: proc(filepath: string, data: [dynamic]string) {
 	bytes := transmute_dynamic_array(data)
-	fmt.println(bytes)
 	cwd := os.get_current_directory()
 
-	name := fmt.tprintf("%v/scenes/%v.txt", cwd, filepath)
+
+	name := fmt.tprintf("%v/scenes/%v", cwd, filepath)
+	if !strings.has_suffix(name, ".txt") {
+		name = fmt.tprintf("%v.txt", name)
+	}
+
+
 	fmt.println(name)
 	ok := os.write_entire_file(name, bytes[:])
 
@@ -628,9 +702,37 @@ write_file :: proc(filepath: string, data: [dynamic]string) {
 	}
 }
 
+
+get_scene_files :: proc(buf: ^[dynamic]string) {
+	cwd := os.get_current_directory()
+	dir_path := fmt.tprintf("%v/scenes", cwd)
+	dir, err := os.open(dir_path)
+	defer os.close(dir)
+
+	if err != nil {
+		fmt.printfln("Failed to open directory: %v", err)
+		return
+	}
+	fis: []os.File_Info
+	fis, err = os.read_dir(dir, -1)
+	defer os.file_info_slice_delete(fis)
+
+	if err != os.ERROR_NONE {
+		fmt.eprintln("Could not read directory", err)
+		return
+	}
+
+	for fi in fis {
+		_, file_name := filepath.split(fi.fullpath)
+
+		append(buf, strings.clone(file_name))
+	}
+}
+
 read_file :: proc(filename: string) -> ([dynamic]string, vmem.Arena) {
 	cwd := os.get_current_directory()
-	filepath := fmt.tprintf("%v/scenes/%v.txt", cwd, filename)
+	filepath := fmt.tprintf("%v/scenes/%v", cwd, filename)
+	fmt.println(filepath)
 	data, ok := os.read_entire_file(filepath, context.temp_allocator)
 	if !ok {
 		return [dynamic]string{}, vmem.Arena{}
@@ -644,6 +746,7 @@ read_file :: proc(filename: string) -> ([dynamic]string, vmem.Arena) {
 
 	it := string(data)
 	for line in strings.split_lines_iterator(&it) {
+		fmt.println(line)
 		append(&content, line)
 	}
 

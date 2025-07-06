@@ -2,6 +2,7 @@ package main
 
 import "core:math"
 
+
 radians_from_vector :: proc(v: Vector2) -> f32 {
 	return math.atan2_f32(v.y, v.x)
 }

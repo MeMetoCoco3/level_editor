@@ -12,6 +12,9 @@ Game :: struct {
 	world:           ^World,
 	cursor_state:    CURSOR_STATE,
 	vertex_selected: VERTEX,
+	files:           ^[dynamic]string,
+	current_title:   string,
+	selected_file:   int,
 }
 
 VERTEX :: enum {
@@ -169,6 +172,7 @@ draw_sprite :: proc(sprite: Sprite, position: Position) {
 	}
 	dst_rec := rl.Rectangle{position.pos.x, position.pos.y, position.size.x, position.size.y}
 	origin := Vector2{position.size.x / 2, position.size.y / 2}
+	fmt.println("ORIGIN", origin)
 	rl.DrawTexturePro(sprite.image^, src_rec, dst_rec, origin, sprite.rotation, rl.WHITE)
 }
 
